@@ -1,0 +1,301 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="GENERATOR" content="Notepad++">
+    <title>Galaksija Flash Manager v3</title>
+    <style>
+        body {margin: 0px; overflow: hidden; margin-right: 0px;}
+        header {background-image: -webkit-linear-gradient(left, #008, purple); linear-gradient(left, #008, purple);}
+        /* tabs */
+        nav {display: inline; float: right}
+        nav > label { border: 2px solid purple; border-bottom: none; border-radius: 5px 5px 0px 0px; background-color: silver; color: black; text-decoration: none; padding: 0px 6px 0px 6px;}
+        nav > label.on {background-color: white;padding-bottom: 1px;}
+        /* inputs restyled to buttons */
+        .low>input[type='file'] {display: none;}
+        footer > label {background: white; border:1px solid black; padding: 3px; border-radius:5px}
+        .HLP {float: right}
+        /* title of window & tabs*/
+        .high {position: fixed; top: 0px; margin-top: 0px; width: 100%; color: #fff; font: bold 22px arial;}
+        /* window without frame */
+        #hole {position: relative; top: 26px; width: 100%; height:calc(100vh - 56px); overflow: auto; font: bold 14px monospace;}
+        /* window footer with buttons */
+        .low {position: fixed; bottom: 0px; width: 100%; height: 26px; background-color: transparent; color: red; font-family: monospace}
+        /* Panels */
+        .info {display: none; text-align: justify; padding: 0px 4px 0px 4px;}
+        #lr{display:flex;gap:5px;border:1px solid #999;white-space:pre;font-size:16px;}
+        #hex{flex:auto;color:white; background-color:black}
+        #asc{flex:auto;background-color:silver}
+        /* default panel */
+        article#DIR {display: block}
+        /* Block Allocation Table */
+        #bitmap{display:grid; grid-template-columns:repeat(64,8px); gap: 1px;}
+        .bit{width: 8px; height:8px}
+        .used{background:blue;}
+        .free{background:#ccc;}
+        .show{background:#2d0;}
+        .lost{background:red;}
+        #faterr{background-color: yellow; color: red}
+        /* File list */
+        table{border-collapse:collapse;width:100%;overflow-y:scroll;padding:10px;}
+        caption{font:bold 24px monospace}
+        td,th{border:1px solid #aaa;padding:4px;}
+        thead {background-color:silver;}
+        tr.dragging{opacity:.75}
+        tr:hover {background-color: #aff}
+</style>
+</head>
+<body onload="init()">
+<header class="high">Galaksija Flash Manager v3
+    <nav onclick="fold(event)">
+            <label class="on">DIR</label>
+            <label class="off">FAT</label>
+            <label class="off">HEX</label>
+            <label class="off">COM</label>
+    </nav>
+</header>
+<div id="hole">
+            <article id="DIR" class="info">
+            <table id="list"><caption>This is File List Panel</caption>
+                <thead><tr><th width=5%></th><th width=40% >Name</th><th width=10%>Size</th><th width=10%>Start</th><th width=10%>End</th><th width=10%>Blocks</th></tr></thead>
+                <tbody id="files"></tbody>
+            </table>
+            </article>
+            <article id="FAT" class="info">
+            <h2>This is Block Allocation Table</h2>
+            <div id="bitmap"></div>
+            </br>
+            <div id="fsel"></div>
+            <div id="faterr"></div>
+            </article>
+            <article id="HEX" class="info">
+            <h2 id="info">This is Hex Dump panel</h2>
+            <div id="lr">
+            <div id="hex">No file selected</div><div id="asc"></div>
+            </div>
+            </article>
+            <article id="COM" class="info">
+            <h2>This is Serial communication panel</h2>
+            <p>No file selected</p>
+            <label for="port">COM port  </label><input type="number" min="0" max="14" step="1" value="4" id="port" />
+            <label for="baud">Baud rate  </label><input type="number" min="9600" max="19200" step="4800" value="19200" id="baud" />
+            <label for="hnd">Parity  </label><input type="text" value="N" id="hnd" size="3" disabled />
+            <label for="tout">Timeout  </label><input type="number" min="3" max="20" step="1" value="10" id="tout" /><br><br><br>
+            <label for="work">Progress  </label><progress id="work" max="100" value="10">10%</progress>
+            </article>
+            <section id="help" class="info">
+                <article id="general" class="help">
+                    <p>About manager</p>
+                </article>
+                <article id="filelist" class="help">
+                    <p>About files</p>
+                </article>
+                <article id="fattable" class="help">
+                     <p>About FAT</p>
+               </article>
+                <article id="hexlist" class="help">
+                    <p>About dumps</p>
+                </article>
+                <article id="serial" class="help">
+                    <p>About serial</p>
+                </article>
+            </section>
+        </div>
+</div>
+<footer class="low">
+    <button class="vv DIR" onclick="newImage()">New</button>
+    <label class="vv DIR" for="img">Open</label><input type="file" id="img">
+    <button class="vv DIR" onclick="saveImage()">Save As...</button>
+    <button class="vv DIR" onclick="exportSelected()">Export</button>
+    <label class="vv DIR" for="imp">Import </label><input type="file" id="imp" multiple>
+    <button class="vv DIR" onclick="deleteSelected()">Delete</button>
+    <button class="vv FAT" onclick="defrag()">Defragment</button>
+    <button class="vv FAT" onclick="rebuild()">Rebuild</button>
+    <input class="vv HEX" id="old" type="radio" name="format" onchange="showFile(fileEntries[selected])"/><label class="vv HEX" for="old">DUMP</label>
+    <input class="vv HEX" id="new" type="radio" checked = "checked" name="format" onchange="showFile(fileEntries[selected])"/><label class="vv HEX" for="new">HDUMP</label>
+    <input class="vv HEX" id="chr" type="radio" name="txt" onchange="showFile(fileEntries[selected])"/><label class="vv HEX" for="chr">ASCII</label>
+    <input class="vv HEX" id="bas" type="radio" checked = "checked" name="txt" onchange="showFile(fileEntries[selected])"/><label class="vv HEX" for="bas">BASIC</label>
+    <button class="vv COM" onclick="backup()">Backup</button>
+    <button class="vv COM" onclick="restore()">Restore</button>
+    <button class="vv COM" onclick="send()">Send</button>
+    <button class="vv COM" onclick="receive()">Receive</button>
+    <button class="HLP" onclick="help()">Help</button>
+</footer>
+<script>
+const BLOCK_SIZE=514; let dv,buf,fileEntries=[],selected=null,chain=[];
+const gal=v=>v.toString(16).toUpperCase().padStart(4,"0");
+const u16=p=>dv.getUint16(p,true);
+const blk=n=>({o:4+n*BLOCK_SIZE,d:6+n*BLOCK_SIZE});
+var cpanel=document.getElementsByClassName("on")[0];
+var bat=[];
+var error=[];
+
+img.onchange=async e=>{buf=await e.target.files[0].arrayBuffer();dv=new DataView(buf);loadDir();
+    list.caption.innerText="Local backup "+e.target.files[0].name;
+    FAT.firstElementChild.innerText="Local backup FAT "+e.target.files[0].name;
+    COM.children[0].innerText="Local backup "+e.target.files[0].name;
+    };
+function init(){
+    bat=document.getElementById("bitmap");
+    for(let i=0;i<126;i++){
+        for(let bit=0;bit<8;bit++){
+            const d=document.createElement("div");
+            d.className="bit free";
+            bat.appendChild(d);
+        }
+    }
+    buttons();
+}
+function buttons(){
+    var btn=document.getElementsByClassName("vv");
+    for (let i=0;i<btn.length;i++){
+        if (btn[i].className=="vv "+cpanel.innerText){btn[i].style.display="inline-block";
+            if (cpanel.innerText=="FAT"){drawBitmap();}
+            }
+        else{btn[i].style.display="none"};
+    }
+}
+function sel(e){
+    if(selected!=null){e.currentTarget.parentElement.childNodes[selected].style.backgroundColor = "";}
+    selected=e.currentTarget.rowIndex-1;
+    e.currentTarget.style.backgroundColor="yellow";
+    showFile(fileEntries[selected]);
+    COM.children[1].innerText="Selected "+fileEntries[selected].name;
+    fsel.innerText="Hilited file: " + fileEntries[selected].name;
+    }
+function galASCII(x){
+    switch (x){//code 39 represents MIPRO1 sign in GAL-ASCII - not BLOCK, but is not reachable from KBD
+        case 191: x = 39; break;
+        case 91: x = 268; break;
+        case 92: x = 262; break;
+        case 93: x = 381; break;
+        case 94: x = 352; break;
+        default: x &= 0xFF;// reduce UNICODE to ASCII (may result strange or missing characters !)
+    }
+    return x;
+}
+function fold(evt){
+    evt.preventDefault();
+    evt.cancelBubble = true;
+    if (evt.eventPhase != 3){return false};
+    cpanel.className = "off";
+    document.getElementById(cpanel.innerText).style.display = "none";
+    evt.target.className = "on";
+    cpanel=evt.target;
+    document.getElementById(cpanel.innerHTML).style.display = "block";
+    buttons();
+    return false;
+}
+function loadDir(){
+ fileEntries=[]; files.innerHTML="";
+ for(let db=1;db<=15;db++){
+  let b=blk(db);
+  for(let e=0;e<32;e++){
+   let p=b.d+e*16, nm=[];
+   for(let i=0;i<14;i++){let c=dv.getUint8(p+i); if(c) nm.push(c);}
+   if(!nm.length) continue;
+   let info=u16(p+14);
+   let fb=info&1023;
+   let bc=info>>10;
+   let bb=blk(fb);
+   let start=u16(bb.d);
+   let end=u16(bb.d+2);
+   let f={name:new TextDecoder().decode(new Uint8Array(nm)),first:fb,count:bc,dirBlock:db,dirEntry:e,sadr:start,eadr:end};
+   fileEntries.unshift(f);
+  }
+ }
+ renderTable();
+ enableDnD();
+};
+function renderTable(){
+ files.innerHTML="";
+ fileEntries.forEach((f,i)=>{
+  let tr=document.createElement("tr");
+  tr.draggable=true; tr.dataset.idx=i;
+  tr.innerHTML=`<td><input type=checkbox ${selected===i?"checked":""}></td><td>${f.name}</td><td>${f.eadr - f.sadr}</td><td>&${gal(f.sadr)}</td><td>&${gal(f.eadr)}</td><td>${f.count}</td>`;
+  tr.onclick=sel;
+  files.appendChild(tr);
+ });
+};
+function enableDnD(){
+ let drag=null;
+ files.querySelectorAll("tr").forEach(tr=>{
+  tr.ondragstart=()=>drag=+tr.dataset.idx;
+  tr.ondragover=e=>e.preventDefault();
+  tr.ondrop=e=>{
+   e.preventDefault();
+   let dst=+tr.dataset.idx;
+   let x=fileEntries.splice(drag,1)[0];
+   fileEntries.splice(dst,0,x);
+   renderTable(); enableDnD();
+  };
+ });
+}
+function drawBitmap(){
+    if (!dv){return};
+    error[1]=false;
+    var state="free";
+    var blkcount=16;
+    var allblk=u16(2);
+    let b=blk(0);
+    for(let i=0;i<126;i++){
+        const c=dv.getUint8(b.d+i);
+        for(let bit=0;bit<8;bit++){
+            const used=(c&(1<<bit))!==0;
+            if (used){blkcount++};
+            const g=chain.indexOf((i*8+bit)+16)!==-1;
+            if (used==false && g==false){state="free"}
+            else if(used==false && g==true){state="lost"; error[1]=true}
+            else if(used==true && g==false){state="used"}
+            else {state="show"};
+            bat.childNodes[i*8+bit].className="bit " + state;
+        }
+    }
+    faterr.innerText="";
+    if (blkcount<allblk){error[0]=true;faterr.innerText="FAT error - orphans in FAT !\n"};
+    if (error[1]){faterr.innerText+="FAT error - blocks not allocated !"};
+    if (error[2]){faterr.innerText+="File "+error[2]+" fragmented !"};
+}
+function showFile(f){
+ if (selected===null) {return};
+ let cur=f.first,data=[],start=f.sadr,end=f.eadr,first=true,dump="",dumpa="",dumpb="";error[2]=""
+ chain.splice(0,chain.length);
+ while(cur){
+  chain.push(cur); let b=blk(cur);
+  if(first){
+    var basicstart=u16(b.d+4); var basicfree=u16(b.d+6);
+    for(let i=4;i<510;i++){data.push(dv.getUint8(b.d+i));first=false;};
+    } else {for(let i=0;i<510;i++)data.push(dv.getUint8(b.d+i));}
+  var last=cur; cur=u16(b.d+510);
+  if (cur && (cur-1)!=last){error[2]=f.name}
+ }
+ data=data.slice(0,Math.max(0,end-start));
+ for(let i=0;i<data.length;i+=8){
+  var dumph=(old.checked?"&":"")+gal(i+start)+(old.checked?":":"")+" ";
+  var cs=((start+i)>>>8)+((start+i)&255);
+  for(let j=0;j<8&&i+j<data.length;j++) {
+    dumph+=data[i+j].toString(16).toUpperCase().padStart(2,"0")+" "; cs=(cs+data[i+j])&255;
+    dumpa+=(data[i+j]>=32 && data[i+j]<128)? String.fromCharCode(data[i+j]): ".";
+    }
+    dump+=dumph.padEnd((old.checked?30:29),"00 ")+(old.checked?"":cs.toString(16).toUpperCase().padStart(2,"0"))+"\n";
+    dumpa+="\n";
+ }
+ if (bas.checked && start==11318 && basicstart==11322){
+    dumpa="";
+    i=4;
+    do {
+        dumpa+=""+((data[i+1]<<8)+data[i]) + " ";
+        i+=2;
+        while (i<data.length && data[i]!=13) {dumpa+=String.fromCharCode(galASCII(data[i++]))} ;
+        dumpa+="\n";
+        i++;
+    } while (i<data.length)
+    
+ } else{}
+ info.innerText=`${f.name}\nStart:${gal(start)} End:${gal(end)} Size:${end-start}\nChain:${chain.join("→")}→0`;
+ hex.innerText=dump;asc.innerText=dumpa;
+}
+</script>
+</body>
+</html>
